@@ -1,0 +1,37 @@
+﻿#pragma once
+#include <vector>
+#include "Lift.cpp"
+#include "Request.cpp"
+using namespace std;
+
+class LiftManagerInstance {
+	vector<Lift*> lifts;
+	int index;
+public:
+	LiftManagerInstance(int idx=0) {
+		this->index = idx;
+	}
+
+	void SetLifts(vector<Lift*>& newLifts) {
+		this->lifts = newLifts;
+	}
+
+	void moveLift() {
+		for (auto lift : lifts) {
+			lift->move();
+		}
+	}
+    
+	void PlaceRequest(Request* req) {
+		Lift* pickedLift = this->FindMinimumWaitLift(req);
+		pickedLift->addRequest(req);
+		cout << "request - " << req->floor->number << " : added to for lift - " << pickedLift->getLiftNumber() << endl;
+	}
+
+	Lift* FindMinimumWaitLift(Request* req) {
+
+		Lift* liftpickup = lifts[index];
+		index = (index + 1) % lifts.size();
+		return liftpickup;
+	}
+};

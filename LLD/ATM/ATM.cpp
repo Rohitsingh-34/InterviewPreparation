@@ -1,5 +1,7 @@
 #include <iostream>
 #include <unordered_map>
+#include <thread>
+#include <mutex>
 using namespace std;
 
 class HasCardState;
@@ -52,7 +54,7 @@ public:
 	int getPinNumber() {
 		return PINNumber;
 	}
-	int setPinNumber(int pin) {
+	void setPinNumber(int pin) {
 		PINNumber = pin;
 	}
 
@@ -83,12 +85,12 @@ public:
 class ATM {
 private:
 	static ATM* atmobj;
+	static mutex mtx;
 	ATMState* currentState;
 	int atmBalance;
 	int twoThousandNotes;
 	int fiveHundredNotes;
 	int hundredNotes;
-
 	ATM() {}
 
 	//ATM(int balance, int twoThousandNotes, int fiveHundredNotes, int hundredNotes) {
@@ -106,16 +108,17 @@ public:
 	//	return atmobj;
 	//}
 	static ATM* getATMObj() {
+		lock_guard<mutex> lock(mtx); //LOCK
 		if (atmobj == nullptr)
 			atmobj = new ATM();
 		return atmobj;
 	}
-void setATMObj(int balance, int twoThousandNotes, int fiveHundredNotes, int hundredNotes) {
-       this->atmBalance = balance;
-       this->twoThousandNotes = twoThousandNotes;
-       this->fiveHundredNotes = fiveHundredNotes;
-       this->hundredNotes = hundredNotes;
-}
+	void setATMObj(int balance, int twoThousandNotes, int fiveHundredNotes, int hundredNotes) {
+		this->atmBalance = balance;
+		this->twoThousandNotes = twoThousandNotes;
+		this->fiveHundredNotes = fiveHundredNotes;
+		this->hundredNotes = hundredNotes;
+	}
 	ATMState* getCurrentState() {
 		return currentState;
 	}
@@ -156,7 +159,7 @@ void setATMObj(int balance, int twoThousandNotes, int fiveHundredNotes, int hund
 		cout << "Rs 100 notes: " << hundredNotes << endl;
 	}
 };
-
+mutex ATM::mtx;
 ATM* ATM::atmobj = nullptr; //assign static variable
 
 // CHAIN OF RESPONSIBILITY DESGIN PATTERN
@@ -172,7 +175,7 @@ public:
 		if (next != nullptr)
 			return next->Withdraw(atmobj, amount, plan);
 		else
-			false;
+			return false;
 	}
 };
 
@@ -252,9 +255,9 @@ public:
 
 	virtual void SelectOperation(ATM* atmobj, Operation operation) { cout << "Oops: something went wrong!!" << endl; };
 
-	virtual int CheckBalance(ATM* atmobj, Card* card) { cout << "Oops: something went wrong!!" << endl; };
+	virtual int CheckBalance(ATM* atmobj, Card* card) { cout << "Oops: something went wrong!!" << endl; return -1; };
 
-	virtual int WithdrawBalance(ATM* atmobj, Card* card, int amount) { cout << "Oops: something went wrong!!" << endl; };
+	virtual int WithdrawBalance(ATM* atmobj, Card* card, int amount) { cout << "Oops: something went wrong!!" << endl; return -1; };
 
 	virtual void ReturnCard() { cout << "Oops: something went wrong!!" << endl; };
 
@@ -392,6 +395,7 @@ void IdleState::InsertCard(ATM* atmobj) {
 
 class ATMRoom {
 public:
+	mutex mtx; //LOCK
 	ATM* atmobj;
 	User* user;
 	ATMRoom() {}
@@ -417,29 +421,35 @@ public:
 
 };
 
+// Add this function to simulate ATM operations in a thread
+void atmUserSession(ATMRoom* atmroom, int pin, int withdrawAmount) {
+	lock_guard<mutex> lock(atmroom->mtx); //LOCK
+	atmroom->getATMobj()->getCurrentState()->InsertCard(atmroom->atmobj);
+	atmroom->getATMobj()->getCurrentState()->AuthenticatePIN(atmroom->atmobj, atmroom->user->getCard(), pin);
+	atmroom->atmobj->getCurrentState()->SelectOperation(atmroom->atmobj, Operation::WITHDRAWAL);
+	atmroom->atmobj->getCurrentState()->WithdrawBalance(atmroom->atmobj, atmroom->user->getCard(), withdrawAmount);
+}
+
 int main() {
 	ATMRoom* atmroom = new ATMRoom();
 	atmroom->initilizeATM(7000, 2, 4, 10);
 	atmroom->atmobj->printATMBalance();
-	atmroom->getATMobj()->getCurrentState()->InsertCard(atmroom->atmobj);
-	atmroom->getATMobj()->getCurrentState()->AuthenticatePIN(atmroom->atmobj, atmroom->user->getCard(), 1111);
-	//	atmroom->atmobj->getCurrentState()->SelectOperation(atmroom->atmobj, Operation::CHECKBALANCE);
-		//atmroom->atmobj->getCurrentState()->CheckBalance(atmroom->atmobj, atmroom->user->getCard());
-	atmroom->atmobj->getCurrentState()->SelectOperation(atmroom->atmobj, Operation::WITHDRAWAL);
-	atmroom->atmobj->getCurrentState()->WithdrawBalance(atmroom->atmobj, atmroom->user->getCard(), 3100);
-	atmroom->atmobj->printATMBalance();
 
-	atmroom->getATMobj()->getCurrentState()->InsertCard(atmroom->atmobj);
-	atmroom->getATMobj()->getCurrentState()->AuthenticatePIN(atmroom->atmobj, atmroom->user->getCard(), 1111);
-	//	atmroom->atmobj->getCurrentState()->SelectOperation(atmroom->atmobj, Operation::CHECKBALANCE);
-		//atmroom->atmobj->getCurrentState()->CheckBalance(atmroom->atmobj, atmroom->user->getCard());
-	atmroom->atmobj->getCurrentState()->SelectOperation(atmroom->atmobj, Operation::WITHDRAWAL);
-	atmroom->atmobj->getCurrentState()->WithdrawBalance(atmroom->atmobj, atmroom->user->getCard(), 3370);
+	// Create two threads simulating two users trying to withdraw concurrently
+	std::thread t1(atmUserSession, atmroom, 1111, 3000);
+	std::thread t2(atmUserSession, atmroom, 1111, 3000);
+
+	t1.join();
+	t2.join();
 
 	atmroom->atmobj->printATMBalance();
-
 }
 
+//THREAD SAFETY IS NOT IN PLACE
+//1. getting singleton instance
+//2. withdraw bank balance() (IT WON'T WORL)
+
+//
 
 /*
 1. if balance is suffice in atm but domniations not add to that amount //fixed

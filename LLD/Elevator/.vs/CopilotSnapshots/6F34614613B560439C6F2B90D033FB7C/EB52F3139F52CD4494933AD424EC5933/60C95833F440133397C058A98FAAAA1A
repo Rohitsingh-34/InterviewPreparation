@@ -1,0 +1,69 @@
+﻿#pragma once
+#include "Display.cpp"
+#include <vector>
+#include "IButton.h"
+#include "Request.cpp"
+#include <queue>
+#include "LiftStatus.cpp"
+using namespace std;
+
+class Lift {
+private:
+	int liftNumber;
+	int currFloor;
+	LiftStatus status;
+	vector<IButton*> buttons;
+	Display* display;
+	queue<Request*> requests;
+public:	
+	Lift(int number, vector<IButton*> buttons, Display* display, int currfloor=1, LiftStatus status = LiftStatus:: IDLE ) {
+		this->liftNumber = number;
+		this->currFloor = currfloor;
+		this->status = status;
+		this->buttons = buttons;
+		this->display = display;
+		this->requests = new queue<Request*>();
+	}
+	int getLiftNumber() {
+		return this->liftNumber;
+	}
+	void move() {
+		if (requests.empty()) {
+			status = LiftStatus::IDLE;
+			display->currFloor = currFloor;
+			display->direction = Direction::IDLE;
+			display->ShowDisplay();
+			return;
+		}
+		Request* req = requests.front();
+		if(req->floor->number == currFloor){
+			this->OpenLift();
+			requests.pop();
+		}
+		else if (req->floor->number > currFloor) {
+			status = LiftStatus::MOVING_UP;
+			display->currFloor = currFloor++;
+			display->direction = Direction::UP;
+		
+		}
+		else {
+			status = LiftStatus::MOVING_DOWN;
+			display->currFloor = currFloor--;
+			display->direction = Direction::DOWN;
+		}
+		display->ShowDisplay();
+	}
+	void updateStatus() {
+		cout << "updating status in lift class" << endl;
+	}
+
+	void addRequest(Request* req) {
+		requests.push(req);
+	}
+	
+	void OpenLift() {
+		cout << "Lift Opened at Floor: " << currFloor << endl << endl;
+
+		cout << "Lift closed at Floor: " << currFloor << endl;
+	}
+};
